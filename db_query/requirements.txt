@@ -1,0 +1,25 @@
+# db_query CLI tool dependencies
+# ================================
+# Core database drivers (install the ones you need)
+
+# PostgreSQL - Psycopg 3 (recommended for new projects)
+# Install with: pip install "psycopg[binary]"
+psycopg[binary]>=3.1.0
+
+# PostgreSQL - Alternative: psycopg2 (legacy, still widely used)
+# Uncomment if you prefer psycopg2:
+# psycopg2-binary>=2.9.0
+
+# MySQL
+mysql-connector-python>=8.0.0
+
+# SQLite3 is included in Python standard library - no installation needed
+
+# Testing dependencies
+pytest>=7.0.0
+pytest-cov>=4.0.0
+
+# Optional: for development
+# black>=23.0.0
+# mypy>=1.0.0
+# ruff>=0.1.0

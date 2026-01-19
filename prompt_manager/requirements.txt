@@ -1,0 +1,11 @@
+# Prompt Manager Dependencies
+# Install with: pip install -r requirements.txt
+
+# YAML support for import/export
+pyyaml>=6.0
+
+# Jinja2 templating for variable substitution
+jinja2>=3.0
+
+# Testing dependencies (optional, for development)
+pytest>=7.0

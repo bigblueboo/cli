@@ -1,0 +1,15 @@
+# shell_assist dependencies
+# At least one AI provider SDK is required
+
+# OpenAI SDK (recommended)
+openai>=1.0.0
+
+# Alternative: Anthropic SDK
+anthropic>=0.18.0
+
+# Alternative: Google Generative AI
+google-generativeai>=0.3.0
+
+# Testing dependencies
+pytest>=7.0.0
+pytest-cov>=4.0.0

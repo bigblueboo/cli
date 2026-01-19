@@ -1,0 +1,8 @@
+# git_changelog dependencies
+#
+# Core dependency for git operations
+gitpython>=3.1.0
+
+# Testing dependencies
+pytest>=7.0.0
+pytest-cov>=4.0.0

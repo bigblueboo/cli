@@ -1,0 +1,10 @@
+# screenshot_url dependencies
+#
+# Install with: pip install -r requirements.txt
+# Then run: playwright install
+#
+# Note: After installing playwright, you must also install browser binaries:
+#   playwright install chromium  # or firefox, webkit
+
+playwright>=1.40.0
+pytest>=7.0.0

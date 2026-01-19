@@ -1,0 +1,24 @@
+# Semantic Search CLI Dependencies
+# ================================
+# Install with: pip install -r requirements.txt
+
+# Core ML/NLP dependencies
+# -------------------------
+# Sentence Transformers for generating text embeddings
+# Latest version: 5.2.0 (as of December 2025)
+# Provides local embedding generation without external API calls
+sentence-transformers>=5.0.0
+
+# FAISS for efficient similarity search
+# Latest version: 1.13.2 (as of December 2025)
+# CPU-only version (no GPU required)
+faiss-cpu>=1.7.0
+
+# Testing dependencies
+# --------------------
+pytest>=7.0.0
+pytest-cov>=4.0.0
+
+# Optional: For faster model loading (included with sentence-transformers)
+# torch>=2.0.0
+# transformers>=4.41.0

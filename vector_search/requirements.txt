@@ -1,0 +1,37 @@
+# Vector Search CLI Dependencies
+# ==============================
+# Core dependencies for the vector_search CLI tool.
+# Install with: pip install -r requirements.txt
+
+# Vector Database Backends
+# ------------------------
+
+# ChromaDB - Default local vector database (no server required)
+# Provides persistent storage and similarity search
+chromadb>=1.0.0
+
+# Pinecone - Cloud-based vector database
+# Requires PINECONE_API_KEY environment variable
+pinecone>=5.0.0
+
+# Weaviate - Self-hosted or cloud vector database
+# Requires WEAVIATE_URL environment variable for remote connections
+weaviate-client>=4.0.0
+
+# Qdrant - Local or cloud vector database
+# Supports both local persistent mode and remote connections via QDRANT_URL
+qdrant-client>=1.6.0
+
+# Embedding Generation
+# --------------------
+
+# Sentence Transformers - State-of-the-art text embeddings
+# Uses models like 'all-MiniLM-L6-v2' for efficient semantic search
+sentence-transformers>=3.0.0
+
+# Transitive Dependencies (automatically installed)
+# -------------------------------------------------
+# numpy - Numerical operations
+# torch - PyTorch for model inference
+# transformers - Hugging Face transformers library
+# tqdm - Progress bars

@@ -1,0 +1,11 @@
+# Google Calendar Schedule CLI - Dependencies
+# Install with: pip install -r requirements.txt
+
+# Google API Client Libraries
+google-api-python-client>=2.100.0
+google-auth>=2.23.0
+google-auth-httplib2>=0.1.1
+
+# Testing Dependencies
+pytest>=7.4.0
+pytest-cov>=4.1.0

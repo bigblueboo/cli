@@ -1,0 +1,15 @@
+# LLM Query CLI Tool Dependencies
+# Install with: pip install -r requirements.txt
+
+# OpenAI Python SDK
+openai>=1.40.0
+
+# Anthropic Python SDK
+anthropic>=0.75.0
+
+# Google GenAI Python SDK (unified SDK for Gemini)
+google-genai>=0.5.0
+
+# For testing
+pytest>=8.0.0
+pytest-asyncio>=0.23.0

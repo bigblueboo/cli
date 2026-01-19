@@ -1,0 +1,18 @@
+# MCP Bridge - Dependencies
+# Install with: pip install -r requirements.txt
+
+# HTTP client for async HTTP/SSE transport
+httpx>=0.25.0
+
+# YAML configuration file parsing
+pyyaml>=6.0.1
+
+# WebSocket support for WebSocket transport
+websockets>=12.0
+
+# Testing dependencies
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+
+# Optional: For development
+# pip install -e .

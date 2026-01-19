@@ -1,0 +1,29 @@
+# slack_notify dependencies
+#
+# Core dependencies (Python 3.7+):
+# - No external dependencies required for basic functionality
+#   The tool uses only standard library modules:
+#   - argparse (CLI parsing)
+#   - json (JSON handling)
+#   - os (environment variables)
+#   - sys (exit codes, streams)
+#   - urllib.request (HTTP requests)
+#   - urllib.error (HTTP error handling)
+
+# Development/Testing dependencies
+pytest>=7.0.0
+pytest-cov>=4.0.0
+
+# Optional: Type checking
+mypy>=1.0.0
+
+# Optional: Code formatting
+black>=23.0.0
+
+# Optional: Linting
+flake8>=6.0.0
+pylint>=2.17.0
+
+# Optional: For enhanced Slack SDK features (not required for basic tool)
+# Uncomment if you want to use the official SDK instead of urllib
+# slack-sdk>=3.21.0

@@ -1,0 +1,20 @@
+# data_extractor dependencies
+# At least one LLM provider SDK is required
+
+# LLM Provider SDKs (install at least one)
+openai>=1.0.0
+anthropic>=0.18.0
+google-generativeai>=0.3.0
+
+# Schema validation
+jsonschema>=4.0.0
+
+# Optional: PDF support
+pypdf>=3.0.0
+
+# Optional: Better HTML parsing
+beautifulsoup4>=4.9.0
+
+# Testing dependencies
+pytest>=7.0.0
+pytest-cov>=4.0.0

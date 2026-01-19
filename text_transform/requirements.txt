@@ -1,0 +1,4 @@
+pyyaml>=6.0
+toml>=0.10.2
+jmespath>=1.0.0
+jinja2>=3.0.0
