@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 """
-email_user - Send notification emails via SendGrid API
+email_user - Send notification emails via Resend API
 
 A CLI tool for AI agents to notify users of completed tasks, routine process
-results, or other important events. Sends to a hardcoded recipient address.
+results, or other important events. Sends from charlie@charliedeck.com to
+charliedeck@gmail.com.
 
 Environment Variables:
-    SENDGRID_API_KEY: Your SendGrid API key (required)
-    EMAIL_RECIPIENT: Recipient email address (required)
-    EMAIL_SENDER: Sender email address (required)
+    RESEND_API_KEY: Your Resend API key (required)
 
 Usage:
     email_user --subject "Task Complete" --body "Your report is ready"
@@ -17,134 +16,252 @@ Usage:
 
 Exit Codes:
     0: Email sent successfully
-    1: Missing required environment variables
-    2: SendGrid API error
-    3: Invalid arguments
+    1: Missing required environment variables or configuration error
+    2: Resend API error (authentication, rate limit, server error)
+    3: Invalid arguments or input validation error
+    4: Network error (connection failed, timeout)
 """
 
 import argparse
-import os
 import sys
 from dataclasses import dataclass
+from enum import IntEnum
 from typing import Optional
 
+# Hardcoded email addresses
+SENDER_EMAIL = "charlie@charliedeck.com"
+RECIPIENT_EMAIL = "charliedeck@gmail.com"
+
+# Import handling for testability
 try:
-    from sendgrid import SendGridAPIClient
-    from sendgrid.helpers.mail import Mail, Email, To, Content, Header
+    import resend
+    RESEND_AVAILABLE = True
 except ImportError:
-    print("Error: sendgrid package not installed. Run: pip install sendgrid", file=sys.stderr)
-    sys.exit(1)
+    resend = None
+    RESEND_AVAILABLE = False
+
+
+class ExitCode(IntEnum):
+    """Exit codes for the CLI."""
+    SUCCESS = 0
+    CONFIG_ERROR = 1
+    API_ERROR = 2
+    INVALID_INPUT = 3
+    NETWORK_ERROR = 4
+
+
+class EmailError(Exception):
+    """Base exception for email errors."""
+    def __init__(self, message: str, exit_code: ExitCode):
+        super().__init__(message)
+        self.exit_code = exit_code
+
+
+class ConfigError(EmailError):
+    """Configuration or environment error."""
+    def __init__(self, message: str):
+        super().__init__(message, ExitCode.CONFIG_ERROR)
+
+
+class APIError(EmailError):
+    """Resend API error."""
+    def __init__(self, message: str):
+        super().__init__(message, ExitCode.API_ERROR)
+
+
+class InputError(EmailError):
+    """Input validation error."""
+    def __init__(self, message: str):
+        super().__init__(message, ExitCode.INVALID_INPUT)
+
+
+class NetworkError(EmailError):
+    """Network connectivity error."""
+    def __init__(self, message: str):
+        super().__init__(message, ExitCode.NETWORK_ERROR)
 
 
 @dataclass
-class EmailConfig:
-    """Configuration for email sending."""
-    api_key: str
-    sender: str
-    recipient: str
+class EmailResult:
+    """Result of sending an email."""
+    success: bool
+    message_id: Optional[str] = None
+    error: Optional[str] = None
 
 
-def get_config() -> EmailConfig:
+def get_api_key() -> str:
     """
-    Load configuration from environment variables.
+    Get the Resend API key from environment.
 
     Returns:
-        EmailConfig with validated settings
+        The API key string
 
     Raises:
-        SystemExit: If required environment variables are missing
+        ConfigError: If RESEND_API_KEY is not set
     """
-    api_key = os.environ.get("SENDGRID_API_KEY")
-    recipient = os.environ.get("EMAIL_RECIPIENT")
-    sender = os.environ.get("EMAIL_SENDER")
+    import os
+    api_key = os.environ.get("RESEND_API_KEY")
 
-    missing = []
     if not api_key:
-        missing.append("SENDGRID_API_KEY")
-    if not recipient:
-        missing.append("EMAIL_RECIPIENT")
-    if not sender:
-        missing.append("EMAIL_SENDER")
+        raise ConfigError(
+            "Missing RESEND_API_KEY environment variable.\n"
+            "Get your API key from https://resend.com/api-keys"
+        )
 
-    if missing:
-        print(f"Error: Missing required environment variables: {', '.join(missing)}", file=sys.stderr)
-        print("\nRequired environment variables:", file=sys.stderr)
-        print("  SENDGRID_API_KEY - Your SendGrid API key", file=sys.stderr)
-        print("  EMAIL_RECIPIENT  - Recipient email address", file=sys.stderr)
-        print("  EMAIL_SENDER     - Sender email address", file=sys.stderr)
-        sys.exit(1)
+    if not api_key.startswith("re_"):
+        raise ConfigError(
+            "Invalid RESEND_API_KEY format. Keys should start with 're_'"
+        )
 
-    return EmailConfig(api_key=api_key, sender=sender, recipient=recipient)
+    return api_key
+
+
+def validate_input(subject: str, body: str) -> None:
+    """
+    Validate email input parameters.
+
+    Args:
+        subject: Email subject line
+        body: Email body content
+
+    Raises:
+        InputError: If validation fails
+    """
+    if not subject or not subject.strip():
+        raise InputError("Email subject cannot be empty")
+
+    if not body or not body.strip():
+        raise InputError("Email body cannot be empty")
+
+    # Reasonable limits
+    if len(subject) > 998:  # RFC 5322 line length limit
+        raise InputError("Email subject exceeds maximum length (998 characters)")
+
+    if len(body) > 10_000_000:  # 10MB limit
+        raise InputError("Email body exceeds maximum size (10MB)")
 
 
 def send_email(
-    config: EmailConfig,
+    api_key: str,
     subject: str,
     body: str,
     html: bool = False,
-    priority: str = "normal"
-) -> dict:
+    priority: str = "normal",
+    tags: Optional[list] = None
+) -> EmailResult:
     """
-    Send an email via SendGrid.
+    Send an email via Resend API.
 
     Args:
-        config: Email configuration with API key and addresses
+        api_key: Resend API key
         subject: Email subject line
         body: Email body content
         html: If True, send as HTML content; otherwise plain text
         priority: Email priority (low, normal, high)
+        tags: Optional list of tags for categorization
 
     Returns:
-        dict with status_code and message_id on success
+        EmailResult with success status and message_id or error
 
     Raises:
-        Exception: On SendGrid API errors
+        APIError: On Resend API errors
+        NetworkError: On connection failures
     """
-    content_type = "text/html" if html else "text/plain"
+    import os
 
-    message = Mail(
-        from_email=Email(config.sender),
-        to_emails=To(config.recipient),
-        subject=subject,
-        plain_text_content=None if html else body,
-        html_content=body if html else None
-    )
+    # Configure the API key
+    resend.api_key = api_key
 
-    # Set priority headers
-    if priority == "high":
-        message.header = Header("X-Priority", "1")
-        message.header = Header("X-MSMail-Priority", "High")
-    elif priority == "low":
-        message.header = Header("X-Priority", "5")
-        message.header = Header("X-MSMail-Priority", "Low")
-
-    sg = SendGridAPIClient(config.api_key)
-    response = sg.send(message)
-
-    return {
-        "status_code": response.status_code,
-        "message_id": response.headers.get("X-Message-Id", "unknown"),
-        "recipient": config.recipient
+    # Build parameters
+    params: dict = {
+        "from": f"Charlie Deck <{SENDER_EMAIL}>",
+        "to": [RECIPIENT_EMAIL],
+        "subject": subject,
     }
+
+    # Set content type
+    if html:
+        params["html"] = body
+    else:
+        params["text"] = body
+
+    # Add priority headers
+    headers = {}
+    if priority == "high":
+        headers["X-Priority"] = "1"
+        headers["Importance"] = "high"
+    elif priority == "low":
+        headers["X-Priority"] = "5"
+        headers["Importance"] = "low"
+
+    if headers:
+        params["headers"] = headers
+
+    # Add tags if provided
+    if tags:
+        params["tags"] = [{"name": "category", "value": t} for t in tags]
+
+    try:
+        response = resend.Emails.send(params)
+
+        # Extract message ID from response
+        message_id = None
+        if hasattr(response, 'id'):
+            message_id = response.id
+        elif isinstance(response, dict) and 'id' in response:
+            message_id = response['id']
+
+        return EmailResult(success=True, message_id=message_id)
+
+    except resend.exceptions.ResendError as e:
+        # Handle specific Resend errors
+        error_msg = str(e)
+        if "401" in error_msg or "unauthorized" in error_msg.lower():
+            raise APIError(f"Authentication failed: Invalid API key")
+        elif "403" in error_msg or "forbidden" in error_msg.lower():
+            raise APIError(f"Permission denied: {error_msg}")
+        elif "429" in error_msg or "rate" in error_msg.lower():
+            raise APIError(f"Rate limit exceeded. Try again later.")
+        elif "5" in error_msg[:1] if error_msg else False:
+            raise APIError(f"Resend server error: {error_msg}")
+        else:
+            raise APIError(f"Resend API error: {error_msg}")
+
+    except (ConnectionError, TimeoutError, OSError) as e:
+        raise NetworkError(f"Network error: {e}")
+
+    except Exception as e:
+        # Catch-all for unexpected errors
+        error_type = type(e).__name__
+        raise APIError(f"Unexpected error ({error_type}): {e}")
 
 
 def create_parser() -> argparse.ArgumentParser:
     """Create and configure the argument parser."""
     parser = argparse.ArgumentParser(
         prog="email_user",
-        description="Send notification emails via SendGrid API. "
-                    "Designed for AI agents to notify users of task completion.",
-        epilog="""
+        description="Send notification emails via Resend API. "
+                    f"Sends from {SENDER_EMAIL} to {RECIPIENT_EMAIL}.",
+        epilog=f"""
 Examples:
   %(prog)s -s "Build Complete" -b "All tests passed"
   %(prog)s --subject "Report Ready" --body "$(cat report.txt)"
   %(prog)s -s "Alert" -b "<h1>Warning</h1>" --html
   echo "Process finished" | %(prog)s -s "Status Update"
+  %(prog)s -s "Deploy" -b "Done" --tag deploy --tag production
+
+Sender:    {SENDER_EMAIL}
+Recipient: {RECIPIENT_EMAIL}
 
 Environment Variables:
-  SENDGRID_API_KEY  Your SendGrid API key
-  EMAIL_RECIPIENT   Recipient email address
-  EMAIL_SENDER      Sender email address
+  RESEND_API_KEY  Your Resend API key (get from https://resend.com/api-keys)
+
+Exit Codes:
+  0  Success
+  1  Configuration error (missing API key)
+  2  API error (auth, rate limit, server error)
+  3  Invalid input (bad arguments)
+  4  Network error (connection failed)
         """,
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
@@ -174,6 +291,14 @@ Environment Variables:
     )
 
     parser.add_argument(
+        "--tag",
+        action="append",
+        dest="tags",
+        metavar="TAG",
+        help="Add a tag for categorization (can be repeated)"
+    )
+
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Print email details without sending"
@@ -182,60 +307,101 @@ Environment Variables:
     parser.add_argument(
         "-q", "--quiet",
         action="store_true",
-        help="Suppress output on success"
+        help="Suppress output on success (exit code still indicates status)"
+    )
+
+    parser.add_argument(
+        "-v", "--verbose",
+        action="store_true",
+        help="Show detailed output including API response"
     )
 
     return parser
 
 
-def main() -> int:
-    """Main entry point."""
+def main(argv: Optional[list] = None) -> int:
+    """
+    Main entry point.
+
+    Args:
+        argv: Command line arguments (uses sys.argv if None)
+
+    Returns:
+        Exit code indicating success or failure type
+    """
     parser = create_parser()
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
+
+    # Check for resend package
+    if not RESEND_AVAILABLE:
+        print("Error: resend package not installed. Run: pip install resend", file=sys.stderr)
+        return ExitCode.CONFIG_ERROR
 
     # Get body from argument or stdin
     body = args.body
     if body is None:
         if sys.stdin.isatty():
             print("Error: --body required or pipe content to stdin", file=sys.stderr)
-            return 3
+            return ExitCode.INVALID_INPUT
         body = sys.stdin.read()
 
-    if not body.strip():
-        print("Error: Email body cannot be empty", file=sys.stderr)
-        return 3
-
-    config = get_config()
-
-    if args.dry_run:
-        print("=== DRY RUN ===")
-        print(f"To: {config.recipient}")
-        print(f"From: {config.sender}")
-        print(f"Subject: {args.subject}")
-        print(f"Priority: {args.priority}")
-        print(f"Content-Type: {'text/html' if args.html else 'text/plain'}")
-        print(f"Body:\n{body}")
-        return 0
-
     try:
+        # Validate inputs
+        validate_input(args.subject, body)
+
+        # Get API key
+        api_key = get_api_key()
+
+        # Dry run mode
+        if args.dry_run:
+            print("=== DRY RUN ===")
+            print(f"To: {RECIPIENT_EMAIL}")
+            print(f"From: {SENDER_EMAIL}")
+            print(f"Subject: {args.subject}")
+            print(f"Priority: {args.priority}")
+            print(f"Content-Type: {'text/html' if args.html else 'text/plain'}")
+            if args.tags:
+                print(f"Tags: {', '.join(args.tags)}")
+            print(f"Body:\n{body}")
+            return ExitCode.SUCCESS
+
+        # Send the email
         result = send_email(
-            config=config,
+            api_key=api_key,
             subject=args.subject,
             body=body,
             html=args.html,
-            priority=args.priority
+            priority=args.priority,
+            tags=args.tags
         )
 
+        # Output based on verbosity
         if not args.quiet:
-            print(f"Email sent successfully to {result['recipient']}")
-            print(f"Status: {result['status_code']}")
-            print(f"Message ID: {result['message_id']}")
+            print(f"Email sent successfully to {RECIPIENT_EMAIL}")
+            if args.verbose and result.message_id:
+                print(f"Message ID: {result.message_id}")
 
-        return 0
+        return ExitCode.SUCCESS
 
-    except Exception as e:
-        print(f"Error sending email: {e}", file=sys.stderr)
-        return 2
+    except ConfigError as e:
+        print(f"Configuration error: {e}", file=sys.stderr)
+        return e.exit_code
+
+    except InputError as e:
+        print(f"Input error: {e}", file=sys.stderr)
+        return e.exit_code
+
+    except APIError as e:
+        print(f"API error: {e}", file=sys.stderr)
+        return e.exit_code
+
+    except NetworkError as e:
+        print(f"Network error: {e}", file=sys.stderr)
+        return e.exit_code
+
+    except KeyboardInterrupt:
+        print("\nAborted by user", file=sys.stderr)
+        return ExitCode.INVALID_INPUT
 
 
 if __name__ == "__main__":
